@@ -36,4 +36,4 @@ deploy:
         - chmod 700 ~/.ssh
         - ssh-keyscan 146.185.209.74 >> ~/.ssh/known_hosts
         - chmod 644 ~/.ssh/known_hosts
-        - ssh -T iluxa@51.250.10.30 ./release.sh
+        - ssh -T ubuntu@146.185.209.74 ./restart.sh
