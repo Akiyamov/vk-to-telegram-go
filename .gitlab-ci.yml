@@ -13,6 +13,15 @@ services:
       entrypoint: ["dockerd-entrypoint.sh", "--tls=false"]
 
 build:
+    image: docker:20-dind
+    variables:
+      DOCKER_HOST: tcp://docker:2375
+      DOCKER_DRIVER: overlay2
+      DOCKER_TLS_CERTDIR: ""
+    services:
+      - name: docker:20-dind
+        alias: docker
+        command: ["--tls=false"]
     stage: build
     script:
         - docker pull akiyamov/telegramrepost:latest || true
@@ -27,6 +36,15 @@ build:
         - docker push akiyamov/telegramrepost:latest
 
 deploy:
+    image: docker:20-dind
+    variables:
+      DOCKER_HOST: tcp://docker:2375
+      DOCKER_DRIVER: overlay2
+      DOCKER_TLS_CERTDIR: ""
+    services:
+      - name: docker:20-dind
+        alias: docker
+        command: ["--tls=false"]
     stage: deploy
     script:
         - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )'
