@@ -1,3 +1,14 @@
+default:
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  before_script:
+    - docker info
+
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+
 stages:
     - build
     - deploy
@@ -8,20 +19,7 @@ workflow:
       when: never
     - when: always
 
-services:
-    - name: docker:dind
-      entrypoint: ["dockerd-entrypoint.sh", "--tls=false"]
-
 build:
-    image: docker:20-dind
-    variables:
-      DOCKER_HOST: tcp://docker:2375
-      DOCKER_DRIVER: overlay2
-      DOCKER_TLS_CERTDIR: ""
-    services:
-      - name: docker:20-dind
-        alias: docker
-        command: ["--tls=false"]
     stage: build
     script:
         - docker pull akiyamov/telegramrepost:latest || true
@@ -36,15 +34,6 @@ build:
         - docker push akiyamov/telegramrepost:latest
 
 deploy:
-    image: docker:20-dind
-    variables:
-      DOCKER_HOST: tcp://docker:2375
-      DOCKER_DRIVER: overlay2
-      DOCKER_TLS_CERTDIR: ""
-    services:
-      - name: docker:20-dind
-        alias: docker
-        command: ["--tls=false"]
     stage: deploy
     script:
         - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )'
