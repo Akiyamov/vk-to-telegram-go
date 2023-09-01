@@ -1,3 +1,14 @@
+default:
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  before_script:
+    - docker info
+
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+
 stages:
     - build
     - deploy
@@ -7,10 +18,6 @@ workflow:
     - if: '$CI_COMMIT_MESSAGE =~ /\[no-ci\]/'
       when: never
     - when: always
-
-services:
-    - name: docker:dind
-      entrypoint: ["dockerd-entrypoint.sh", "--tls=false"]
 
 build:
     stage: build
