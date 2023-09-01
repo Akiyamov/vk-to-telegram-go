@@ -1,0 +1,39 @@
+stages:
+    - build
+    - deploy
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_MESSAGE =~ /\[no-ci\]/'
+      when: never
+    - when: always
+
+services:
+    - name: docker:dind
+      entrypoint: ["dockerd-entrypoint.sh", "--tls=false"]
+
+build:
+    stage: build
+    script:
+        - docker pull akiyamov/telegramrepost:latest || true
+        - docker build
+          --cache-from akiyamov/telegramrepost:latest
+          --tag akiyamov/telegramrepost:latest
+          --file ./Dockerfile
+          "."
+        - docker login
+          --username akiyamov
+          --password $DOCKER_OAUTH_TOKEN
+        - docker push akiyamov/telegramrepost:latest
+
+deploy:
+    stage: deploy
+    script:
+        - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )'
+        - eval $(ssh-agent -s)
+        - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+        - mkdir -p ~/.ssh
+        - chmod 700 ~/.ssh
+        - ssh-keyscan 146.185.209.74 >> ~/.ssh/known_hosts
+        - chmod 644 ~/.ssh/known_hosts
+        - ssh -T ubuntu@146.185.209.74 ./restart.sh
