@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -80,8 +81,8 @@ func PostPhoto() {
 		tmp[i].Type_photo = "photo"
 		tmp[i].Media = vk_link_images[i]
 	}
-	tmp[0].Parse_mode = "markdownv2"
-	tmp[0].Caption = fmt.Sprintf("%s\n\n*[Ссылка на пост](https://vk.com/wall%s_%d)*", vk_response.Items[0].Text, vk_owner_id, vk_response.Items[0].ID)
+	tmp[0].Parse_mode = "html"
+	tmp[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%d\"><b>Ссылка на пост</b></a>", vk_response.Items[0].Text, vk_owner_id, vk_response.Items[0].ID)
 	telegram_api.Media = tmp
 	tmp_json, err := json.Marshal(telegram_api)
 	if err != nil {
@@ -95,6 +96,11 @@ func PostPhoto() {
 		log.Fatal(err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Print("Response is not 200, %s", resp.Status)
+		body, _ := io.ReadAll(resp.Body)
+		log.Fatalln("response Body:", string(body))
+	}
 }
 
 func Poll() {
