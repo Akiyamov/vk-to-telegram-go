@@ -28,9 +28,10 @@ build:
           --tag akiyamov/telegramrepost:latest
           --file ./Dockerfile
           "."
-        - docker login
+        - echo $DOCKER_OAUTH_TOKEN | 
+          docker login
           --username akiyamov
-          --password $DOCKER_OAUTH_TOKEN
+          --password-stdin
         - docker push akiyamov/telegramrepost:latest
 
 deploy:
