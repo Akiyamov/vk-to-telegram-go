@@ -21,14 +21,26 @@ var vk_post_link string
 var vk_link_images []string
 var vk_post_text string
 var vk_response api.WallGetResponse
+var vk_response_repost api.WallGetResponse
 var vk_post_last int
 var vk_post_requested int
 
 var telegram_bot_token string
 var telegram_chat_id string
-var telegram_api_url string
-var telegram_api telegram_api_params
-var tmp []telegram_photo_params
+var telegram_is_video bool
+var telegram_is_audio bool
+var telegram_is_unsupported bool
+var telegram_api_send_media string
+var telegram_api_send_text string
+var telegram_api_text telegram_api_text_params
+var telegram_api_media telegram_api_params
+var telegram_api_photos []telegram_photo_params
+
+type telegram_api_text_params struct {
+	Chat_id    string `json:"chat_id"`
+	Text       string `json:"text"`
+	Parse_mode string `json:"parse_mode"`
+}
 
 type telegram_api_params struct {
 	Chat_id string                  `json:"chat_id"`
@@ -64,42 +76,72 @@ func Request() {
 	} else if vk_post_last != vk_post_requested {
 		vk_post_last = vk_post_requested
 		log.Print("New post, initiate post sequence\n")
-		PostPhoto()
+		PostMessage(vk_response)
+		if vk_response.Items[0].CopyHistory != nil {
+			vk_response_repost.Items = vk_response.Items[0].CopyHistory
+			PostMessage(vk_response_repost)
+		}
 	} else {
 		log.Print("No posts, continue polling\n")
 	}
 }
 
-func PostPhoto() {
-	vk_link_images = make([]string, len(vk_response.Items[0].Attachments))
-	for i := range vk_response.Items[0].Attachments {
-		vk_link_images[i] = vk_response.Items[0].Attachments[i].Photo.MaxSize().BaseImage.URL
-	}
-	telegram_api.Chat_id = telegram_chat_id
-	tmp = make([]telegram_photo_params, len(vk_link_images))
-	for i := range tmp {
-		tmp[i].Type_photo = "photo"
-		tmp[i].Media = vk_link_images[i]
-	}
-	tmp[0].Parse_mode = "html"
-	tmp[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%d\"><b>Ссылка на пост</b></a>", vk_response.Items[0].Text, vk_owner_id, vk_response.Items[0].ID)
-	telegram_api.Media = tmp
-	tmp_json, err := json.Marshal(telegram_api)
-	if err != nil {
-		log.Fatal(err)
-	}
-	req, err := http.NewRequest("POST", telegram_api_url, bytes.NewBuffer(tmp_json))
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		log.Print("Response is not 200, %s", resp.Status)
-		body, _ := io.ReadAll(resp.Body)
-		log.Fatalln("response Body:", string(body))
+func PostMessage(post_response api.WallGetResponse) {
+	if len(post_response.Items[0].Attachments) > 0 {
+		telegram_api_photos = make([]telegram_photo_params, len(post_response.Items[0].Attachments))
+		for i := range post_response.Items[0].Attachments {
+			if post_response.Items[0].Attachments[i].Type == "photo" {
+				telegram_api_photos[i].Type_photo = "photo"
+				telegram_api_photos[i].Media = post_response.Items[0].Attachments[i].Photo.MaxSize().URL
+			} else if post_response.Items[0].Attachments[i].Type == "doc" && post_response.Items[0].Attachments[i].Doc.Ext == "gif" {
+				telegram_api_photos[i].Type_photo = "video"
+				telegram_api_photos[i].Media = post_response.Items[0].Attachments[i].Doc.URL
+			}
+		}
+		telegram_api_media.Chat_id = telegram_chat_id
+		telegram_api_photos[0].Parse_mode = "html"
+		telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, vk_owner_id, post_response.Items[0].ID)
+		telegram_api_media.Media = telegram_api_photos
+		tmp_json, err := json.Marshal(telegram_api_media)
+		if err != nil {
+			log.Fatal(err)
+		}
+		req, err := http.NewRequest("POST", telegram_api_send_media, bytes.NewBuffer(tmp_json))
+		req.Header.Set("Content-Type", "application/json")
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			log.Print("Response is not 200, %s", resp.Status)
+			body, _ := io.ReadAll(resp.Body)
+			log.Fatalln("response Body:", string(body))
+
+		}
+	} else {
+		log.Print("Post has no media, post caption only\n")
+		telegram_api_text.Text = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, vk_owner_id, post_response.Items[0].ID)
+		telegram_api_text.Parse_mode = "html"
+		telegram_api_text.Chat_id = telegram_chat_id
+		tmp_json, err := json.Marshal(telegram_api_text)
+		if err != nil {
+			log.Fatal(err)
+		}
+		req, err := http.NewRequest("POST", telegram_api_send_text, bytes.NewBuffer(tmp_json))
+		req.Header.Set("Content-Type", "application/json")
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			log.Print("Response is not 200, %s", resp.Status)
+			body, _ := io.ReadAll(resp.Body)
+			log.Fatalln("response Body:", string(body))
+		}
 	}
 }
 
@@ -120,10 +162,8 @@ func main() {
 	vk_post_last = 1
 	telegram_bot_token = os.Getenv("TG_TOKEN")
 	telegram_chat_id = os.Getenv("TG_CHAT_ID")
-	telegram_api_url = fmt.Sprintf("https://api.telegram.org/bot%s/sendMediaGroup", telegram_bot_token)
+	telegram_api_send_media = fmt.Sprintf("https://api.telegram.org/bot%s/sendMediaGroup", telegram_bot_token)
+	telegram_api_send_text = fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", telegram_bot_token)
 
 	Poll()
 }
-
-// kessoku_group
-// -218803038
