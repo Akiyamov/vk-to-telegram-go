@@ -13,31 +13,19 @@ import (
 	"time"
 
 	"github.com/SevereCloud/vksdk/v2/api"
+	"github.com/joho/godotenv"
 )
 
 var vk_access_token string
 var vk_api_version string
 var vk_owner_id string
-var vk_post_link string
-var vk_link_images []string
-var vk_post_text string
-var vk_response api.WallGetResponse
-var vk_response_repost api.WallGetResponse
 var vk_post_last int
 var vk_post_requested int
 
 var telegram_bot_token string
 var telegram_chat_id string
-var telegram_is_video bool
-var telegram_is_audio bool
-var telegram_is_unsupported bool
 var telegram_api_send_media string
 var telegram_api_send_text string
-var telegram_api_text telegram_api_text_params
-var telegram_api_media telegram_api_params
-var telegram_api_audio telegram_api_params_audio
-var telegram_api_photos []telegram_photo_params
-var telegram_api_audio_params []telegram_audio_params
 
 type telegram_api_text_params struct {
 	Chat_id    string `json:"chat_id"`
@@ -70,6 +58,9 @@ type telegram_audio_params struct {
 }
 
 func Request() {
+	var vk_response api.WallGetResponse
+	var vk_response_repost api.WallGetResponse
+
 	vk := api.NewVK(vk_access_token)
 
 	params := api.Params{
@@ -83,6 +74,8 @@ func Request() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	fmt.Printf("%v", vk_response.Items[0].CopyHistory)
 
 	vk_post_requested = vk_response.Items[0].ID
 
@@ -170,8 +163,8 @@ func DeleteEmptyMedia(s []telegram_photo_params) []telegram_photo_params {
 
 func PostMessage(post_response api.WallGetResponse) {
 	if len(post_response.Items[0].Attachments) > 0 {
-		telegram_api_photos = make([]telegram_photo_params, len(post_response.Items[0].Attachments))
-		telegram_api_audio_params = make([]telegram_audio_params, len(post_response.Items[0].Attachments))
+		telegram_api_photos := make([]telegram_photo_params, len(post_response.Items[0].Attachments))
+		telegram_api_audio_params := make([]telegram_audio_params, len(post_response.Items[0].Attachments))
 		for i := range post_response.Items[0].Attachments {
 			if post_response.Items[0].Attachments[i].Type == "photo" {
 				telegram_api_photos[i].Type_photo = "photo"
@@ -182,6 +175,7 @@ func PostMessage(post_response api.WallGetResponse) {
 			} else if post_response.Items[0].Attachments[i].Type == "audio" {
 				telegram_api_audio_params[i].Type_audio = "audio"
 				telegram_api_audio_params[i].Media = GetAudioURL(fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.OwnerID), fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.ID))
+				telegram_api_audio := telegram_api_params_audio{}
 				telegram_api_audio.Chat_id = telegram_chat_id
 				telegram_api_audio_params[i].Parse_mode = "html"
 				telegram_api_audio_params[i].Caption = fmt.Sprintf("<b>Пидорасня не дает сделать в одном посте, поэтому отдельно</b>")
@@ -195,6 +189,7 @@ func PostMessage(post_response api.WallGetResponse) {
 				SendToTelegram(tmp_json)
 			}
 		}
+		telegram_api_media := telegram_api_params{}
 		telegram_api_media.Chat_id = telegram_chat_id
 		telegram_api_photos[0].Parse_mode = "html"
 		telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, vk_owner_id, post_response.Items[0].ID)
@@ -208,6 +203,7 @@ func PostMessage(post_response api.WallGetResponse) {
 		SendToTelegram(tmp_json)
 	} else {
 		log.Print("Post has no media, post caption only\n")
+		telegram_api_text := telegram_api_text_params{}
 		telegram_api_text.Text = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, vk_owner_id, post_response.Items[0].ID)
 		telegram_api_text.Parse_mode = "html"
 		telegram_api_text.Chat_id = telegram_chat_id
@@ -242,11 +238,15 @@ func Poll() {
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 	vk_access_token = os.Getenv("VK_TOKEN")
 	vk_api_version = os.Getenv("VK_API_VERSION")
 	vk_owner_id = os.Getenv("VK_GROUP_ID")
 	vk_post_last = 1
-	telegram_bot_token = os.Getenv("TG_TOKEN")
+	telegram_bot_token := os.Getenv("TG_TOKEN")
 	telegram_chat_id = os.Getenv("TG_CHAT_ID")
 	telegram_api_send_media = fmt.Sprintf("https://api.telegram.org/bot%s/sendMediaGroup", telegram_bot_token)
 	telegram_api_send_text = fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", telegram_bot_token)
