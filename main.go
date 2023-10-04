@@ -191,7 +191,7 @@ func PostMessage(post_response api.WallGetResponse) {
 		telegram_api_media := telegram_api_params{}
 		telegram_api_media.Chat_id = telegram_chat_id
 		telegram_api_photos[0].Parse_mode = "html"
-		telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, vk_owner_id, post_response.Items[0].ID)
+		telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID)
 		telegram_api_photos = DeleteEmptyMedia(telegram_api_photos)
 		telegram_api_media.Media = telegram_api_photos
 		log.Print(telegram_api_media)
@@ -203,7 +203,7 @@ func PostMessage(post_response api.WallGetResponse) {
 	} else {
 		log.Print("Post has no media, post caption only\n")
 		telegram_api_text := telegram_api_text_params{}
-		telegram_api_text.Text = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, vk_owner_id, post_response.Items[0].ID)
+		telegram_api_text.Text = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID)
 		telegram_api_text.Parse_mode = "html"
 		telegram_api_text.Chat_id = telegram_chat_id
 		tmp_json, err := json.Marshal(telegram_api_text)
