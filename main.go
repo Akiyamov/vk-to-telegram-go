@@ -74,8 +74,6 @@ func Request() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("%v", vk_response.Items[0].CopyHistory)
-
 	vk_post_requested = vk_response.Items[0].ID
 
 	if vk_post_last == 1 {
