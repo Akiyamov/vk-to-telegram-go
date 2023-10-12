@@ -63,10 +63,11 @@ func Request() {
 	vk := api.NewVK(vk_access_token)
 
 	params := api.Params{
-		"owner_id": vk_owner_id,
-		"count":    1,
-		"filter":   "all",
-		"v":        vk_api_version,
+		"access_token": vk_access_token,
+		"owner_id":     vk_owner_id,
+		"count":        1,
+		"filter":       "all",
+		"v":            vk_api_version,
 	}
 
 	err := vk.RequestUnmarshal("wall.get", &vk_response, params)
