@@ -1,6 +1,6 @@
 module gitlab.com/Akiyamov/telegramrepost
 
-go 1.21.0
+go 1.21.3
 
 require github.com/SevereCloud/vksdk/v2 v2.16.1
 
