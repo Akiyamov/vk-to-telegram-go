@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/SevereCloud/vksdk/v2/api"
+	"github.com/joho/godotenv"
 )
 
 var vk_access_token string
@@ -236,6 +237,10 @@ func Poll() {
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 	vk_access_token = os.Getenv("VK_TOKEN")
 	vk_api_version = os.Getenv("VK_API_VERSION")
 	vk_owner_id = os.Getenv("VK_GROUP_ID")
