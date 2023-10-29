@@ -10,10 +10,15 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/SevereCloud/vksdk/v2/api"
+	"github.com/joho/godotenv"
 )
+
+const EnvPath = "/opt/.env"
 
 var vk_access_token string
 var vk_api_version string
@@ -235,7 +240,21 @@ func Poll() {
 	}
 }
 
+func LoadEnv() {
+	_, f, _, ok := runtime.Caller(0)
+	if !ok {
+		log.Fatal("Error generating env dir")
+	}
+	dir := filepath.Join(filepath.Dir(f), "../..", EnvPath)
+
+	err := godotenv.Load(dir)
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+}
+
 func main() {
+	LoadEnv()
 	vk_access_token = os.Getenv("VK_TOKEN")
 	vk_api_version = os.Getenv("VK_API_VERSION")
 	vk_owner_id = os.Getenv("VK_GROUP_ID")
