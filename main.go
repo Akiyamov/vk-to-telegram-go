@@ -10,15 +10,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
-	"runtime"
+	"strings"
 	"time"
 
 	"github.com/SevereCloud/vksdk/v2/api"
 	"github.com/joho/godotenv"
 )
 
-const EnvPath = "/opt/.env"
+//const EnvPath = "Z:\\telegramrepost\\opt\\.env"
 
 var vk_access_token string
 var vk_api_version string
@@ -128,6 +127,114 @@ func GetAudioURL(owner_id string, audio_id string) string {
 	return url_of
 }
 
+func GetVideoURL(owner_id int, vid int) {
+	var url_best string
+	oid := owner_id
+	id := vid
+
+	payloadi := url.Values{
+		"act":         {"show"},
+		"al":          {"1"},
+		"module":      {"direct"},
+		"playlist_id": {fmt.Sprintf("%d_-2", oid)},
+		"video":       {fmt.Sprintf("%d_%d", oid, id)},
+	}
+
+	req, err := http.NewRequest("POST", "https://vk.com/al_video.php?act=show", strings.NewReader(payloadi.Encode()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header = http.Header{
+		"authority":          {"authority"},
+		"accept":             {"*/*"},
+		"accept-language":    {"ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7"},
+		"content-type":       {"application/x-www-form-urlencoded"},
+		"dnt":                {"1"},
+		"origin":             {"https://vk.com"},
+		"referer":            {fmt.Sprintf("https://vk.com/video%d_%d", oid, id)},
+		"sec-ch-ua":          {"\"Google Chrome\";v=\"117\", \"Not;A=Brand\";v=\"8\", \"Chromium\";v=\"117\""},
+		"sec-ch-ua-mobile":   {"?0"},
+		"sec-ch-ua-platform": {"\"Windows\""},
+		"sec-fetch-dest":     {"empty"},
+		"sec-fetch-mode":     {"cors"},
+		"sec-fetch-site":     {"same-origin"},
+		"user-agent":         {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"},
+		"x-requested-with":   {"XMLHttpRequest"},
+	}
+	client := http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		log.Fatalf("impossible to send request: %s", err)
+	}
+	log.Printf("status Code: %d", res.StatusCode)
+
+	defer res.Body.Close()
+	dec := json.NewDecoder(res.Body)
+	if dec == nil {
+		panic("Failed to start decoding JSON data")
+	}
+	json_map := make(map[string]interface{})
+	err = dec.Decode(&json_map)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%v", json_map["payload"])
+	url240 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url240"]
+	url360 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url360"]
+	url480 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url480"]
+	if url480 == nil {
+		if url360 == nil {
+			if url240 == nil {
+				log.Fatal("Ты еблан")
+			} else {
+				url_best = fmt.Sprintf("%v", url240)
+			}
+		} else {
+			url_best = fmt.Sprintf("%v", url360)
+		}
+	} else {
+		url_best = fmt.Sprintf("%v", url480)
+	}
+
+	req, err = http.NewRequest("GET", url_best, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	out, err := os.Create(fmt.Sprintf("%v_%v.mp4", oid, id))
+	defer out.Close()
+	req.Header = http.Header{
+		"Accept":                    {"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"},
+		"Accept-Language":           {"ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7"},
+		"Connection":                {"keep-alive"},
+		"Cookie":                    {"tstc=p"},
+		"DNT":                       {"1"},
+		"Sec-Fetch-Dest":            {"document"},
+		"Sec-Fetch-Mode":            {"navigate"},
+		"Sec-Fetch-Site":            {"none"},
+		"Sec-Fetch-User":            {"?1"},
+		"Upgrade-Insecure-Requests": {"1"},
+		"User-Agent":                {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"},
+		"sec-ch-ua":                 {"\"Google Chrome\";v=\"117\", \"Not;A=Brand\";v=\"8\", \"Chromium\";v=\"117\""},
+		"sec-ch-ua-mobile":          {"?0"},
+		"sec-ch-ua-platform":        {"\"Windows\""},
+	}
+	client = http.Client{}
+	// send the request
+	res, err = client.Do(req)
+	if err != nil {
+		log.Fatalf("impossible to send request: %s", err)
+	}
+	log.Printf("status Code: %d", res.StatusCode)
+	defer res.Body.Close()
+	n, err := io.Copy(out, res.Body)
+	log.Print(n)
+	respo, err := os.Open("weew.mp4")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("", respo)
+}
+
 func SendToTelegram(post_data []byte) {
 	req, err := http.NewRequest("POST", telegram_api_send_media, bytes.NewBuffer(post_data))
 	req.Header.Set("Content-Type", "application/json")
@@ -175,6 +282,10 @@ func PostMessage(post_response api.WallGetResponse) {
 			} else if post_response.Items[0].Attachments[i].Type == "doc" && post_response.Items[0].Attachments[i].Doc.Ext == "gif" {
 				telegram_api_photos[i].Type_photo = "video"
 				telegram_api_photos[i].Media = post_response.Items[0].Attachments[i].Doc.URL
+			} else if post_response.Items[0].Attachments[i].Type == "video" {
+				telegram_api_photos[i].Type_photo = "video"
+				GetVideoURL(post_response.Items[0].Attachments[i].Video.OwnerID, post_response.Items[0].Attachments[i].Video.ID)
+				telegram_api_photos[i].Media = fmt.Sprintf("attach://%v_%v.mp4", post_response.Items[0].Attachments[i].Video.OwnerID, post_response.Items[0].Attachments[i].Video.ID)
 			} else if post_response.Items[0].Attachments[i].Type == "audio" {
 				telegram_api_audio_params[i].Type_audio = "audio"
 				telegram_api_audio_params[i].Media = GetAudioURL(fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.OwnerID), fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.ID))
@@ -240,29 +351,32 @@ func Poll() {
 	}
 }
 
-func LoadEnv() {
-	_, f, _, ok := runtime.Caller(0)
-	if !ok {
-		log.Fatal("Error generating env dir")
-	}
-	dir := filepath.Join(filepath.Dir(f), "../..", EnvPath)
+//func LoadEnv() {
+//	_, f, _, ok := runtime.Caller(0)
+//	if !ok {
+//		log.Fatal("Error generating env dir")
+//	}
+//	dir := filepath.Join(filepath.Dir(f), "../..", EnvPath)
+//
+//	err := godotenv.Load(dir)
+//	if err != nil {
+//		log.Fatal("Error loading .env file")
+//	}
+//}
 
-	err := godotenv.Load(dir)
+func main() {
+	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
-}
-
-func main() {
-	LoadEnv()
 	vk_access_token = os.Getenv("VK_TOKEN")
 	vk_api_version = os.Getenv("VK_API_VERSION")
 	vk_owner_id = os.Getenv("VK_GROUP_ID")
 	vk_post_last = 1
 	telegram_bot_token := os.Getenv("TG_TOKEN")
 	telegram_chat_id = os.Getenv("TG_CHAT_ID")
-	telegram_api_send_media = fmt.Sprintf("https://api.telegram.org/bot%s/sendMediaGroup", telegram_bot_token)
-	telegram_api_send_text = fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", telegram_bot_token)
+	telegram_api_send_media = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendMediaGroup", telegram_bot_token)
+	telegram_api_send_text = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendMessage", telegram_bot_token)
 
 	Poll()
 }
