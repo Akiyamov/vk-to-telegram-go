@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -18,7 +20,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-//const EnvPath = "Z:\\telegramrepost\\opt\\.env"
+const EnvPath = "/opt/.env"
 
 var vk_access_token string
 var vk_api_version string
@@ -385,30 +387,28 @@ func Poll() {
 	}
 }
 
-//func LoadEnv() {
-//	_, f, _, ok := runtime.Caller(0)
-//	if !ok {
-//		log.Fatal("Error generating env dir")
-//	}
-//	dir := filepath.Join(filepath.Dir(f), "../..", EnvPath)
-//
-//	err := godotenv.Load(dir)
-//	if err != nil {
-//		log.Fatal("Error loading .env file")
-//	}
-//}
+func LoadEnv() {
+	_, f, _, ok := runtime.Caller(0)
+	if !ok {
+		log.Fatal("Error generating env dir")
+	}
+	dir := filepath.Join(filepath.Dir(f), "../..", EnvPath)
 
-func main() {
-	err := godotenv.Load()
+	err := godotenv.Load(dir)
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
+}
+
+func main() {
+	LoadEnv()
 	vk_access_token = os.Getenv("VK_TOKEN")
 	vk_api_version = os.Getenv("VK_API_VERSION")
 	vk_owner_id = os.Getenv("VK_GROUP_ID")
 	vk_post_last = 1
 	telegram_bot_token := os.Getenv("TG_TOKEN")
 	telegram_chat_id = os.Getenv("TG_CHAT_ID")
+	telegram_temp_chat_id = os.Getenv("TG_TEMP_CHAT_ID")
 	telegram_api_send_media = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendMediaGroup", telegram_bot_token)
 	telegram_api_send_text = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendMessage", telegram_bot_token)
 	telegram_api_send_video = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendVideo", telegram_bot_token)
