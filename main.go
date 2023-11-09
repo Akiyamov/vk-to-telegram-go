@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -26,7 +27,9 @@ var vk_post_last int
 var vk_post_requested int
 
 var telegram_bot_token string
+var telegram_temp_chat_id string
 var telegram_chat_id string
+var telegram_api_send_video string
 var telegram_api_send_media string
 var telegram_api_send_text string
 
@@ -127,7 +130,7 @@ func GetAudioURL(owner_id string, audio_id string) string {
 	return url_of
 }
 
-func GetVideoURL(owner_id int, vid int) {
+func GetVideoURL(owner_id int, vid int) string {
 	var url_best string
 	oid := owner_id
 	id := vid
@@ -178,7 +181,6 @@ func GetVideoURL(owner_id int, vid int) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("%v", json_map["payload"])
 	url240 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url240"]
 	url360 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url360"]
 	url480 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url480"]
@@ -227,12 +229,49 @@ func GetVideoURL(owner_id int, vid int) {
 	log.Printf("status Code: %d", res.StatusCode)
 	defer res.Body.Close()
 	n, err := io.Copy(out, res.Body)
-	log.Print(n)
-	respo, err := os.Open("weew.mp4")
+	fmt.Printf("", n)
+	respo, err := os.Open(fmt.Sprintf("%d_%d.mp4", oid, id))
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("", respo)
+	form := new(bytes.Buffer)
+	writer := multipart.NewWriter(form)
+	fw, err := writer.CreateFormFile("video", fmt.Sprintf("%d_%d.mp4", oid, id))
+	if err != nil {
+		log.Fatal(err)
+	}
+	fd, err := os.Open(fmt.Sprintf("./%d_%d.mp4", oid, id))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer fd.Close()
+	_, err = io.Copy(fw, fd)
+	if err != nil {
+		log.Fatal(err)
+	}
+	formField, err := writer.CreateFormField("chat_id")
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = formField.Write([]byte(telegram_temp_chat_id))
+	writer.Close()
+	client = http.Client{}
+	req, err = http.NewRequest("POST", telegram_api_send_video, form)
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+	data_vid := make(map[string]interface{})
+	err = json.NewDecoder(resp.Body).Decode(&data_vid)
+	vid_idd := data_vid["result"].(map[string]interface{})["video"].(map[string]interface{})["file_id"]
+	vid_id := fmt.Sprintf("%v", vid_idd)
+	return vid_id
 }
 
 func SendToTelegram(post_data []byte) {
@@ -245,7 +284,7 @@ func SendToTelegram(post_data []byte) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		log.Print("Response is not 200, %s", resp.Status)
+		log.Print("Response is not 200, ", resp.Status)
 		body, _ := io.ReadAll(resp.Body)
 		log.Fatalln("response Body:", string(body))
 	}
@@ -285,7 +324,7 @@ func PostMessage(post_response api.WallGetResponse) {
 			} else if post_response.Items[0].Attachments[i].Type == "video" {
 				telegram_api_photos[i].Type_photo = "video"
 				GetVideoURL(post_response.Items[0].Attachments[i].Video.OwnerID, post_response.Items[0].Attachments[i].Video.ID)
-				telegram_api_photos[i].Media = fmt.Sprintf("attach://%v_%v.mp4", post_response.Items[0].Attachments[i].Video.OwnerID, post_response.Items[0].Attachments[i].Video.ID)
+				telegram_api_photos[i].Media = fmt.Sprintf("%v", GetVideoURL(post_response.Items[0].Attachments[i].Video.OwnerID, post_response.Items[0].Attachments[i].Video.ID))
 			} else if post_response.Items[0].Attachments[i].Type == "audio" {
 				telegram_api_audio_params[i].Type_audio = "audio"
 				telegram_api_audio_params[i].Media = GetAudioURL(fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.OwnerID), fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.ID))
@@ -296,11 +335,6 @@ func PostMessage(post_response api.WallGetResponse) {
 				telegram_api_audio_params = DeleteEmptyAudio(telegram_api_audio_params)
 				telegram_api_audio.Media = telegram_api_audio_params
 				log.Print(telegram_api_audio)
-				tmp_json, err := json.Marshal(telegram_api_audio)
-				if err != nil {
-					log.Fatal(err)
-				}
-				SendToTelegram(tmp_json)
 			}
 		}
 		telegram_api_media := telegram_api_params{}
@@ -377,6 +411,7 @@ func main() {
 	telegram_chat_id = os.Getenv("TG_CHAT_ID")
 	telegram_api_send_media = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendMediaGroup", telegram_bot_token)
 	telegram_api_send_text = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendMessage", telegram_bot_token)
+	telegram_api_send_video = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendVideo", telegram_bot_token)
 
 	Poll()
 }
