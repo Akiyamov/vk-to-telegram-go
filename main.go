@@ -186,18 +186,23 @@ func GetVideoURL(owner_id int, vid int) string {
 	url240 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url240"]
 	url360 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url360"]
 	url480 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url480"]
-	if url480 == nil {
-		if url360 == nil {
-			if url240 == nil {
-				log.Fatal("Ты еблан")
+	url720 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url720"]
+	if url720 == nil {
+		if url480 == nil {
+			if url360 == nil {
+				if url240 == nil {
+					log.Fatal("Ты еблан")
+				} else {
+					url_best = fmt.Sprintf("%v", url240)
+				}
 			} else {
-				url_best = fmt.Sprintf("%v", url240)
+				url_best = fmt.Sprintf("%v", url360)
 			}
 		} else {
-			url_best = fmt.Sprintf("%v", url360)
+			url_best = fmt.Sprintf("%v", url480)
 		}
 	} else {
-		url_best = fmt.Sprintf("%v", url480)
+		url_best = fmt.Sprintf("%v", url720)
 	}
 
 	req, err = http.NewRequest("GET", url_best, nil)
