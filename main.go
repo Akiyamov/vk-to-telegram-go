@@ -331,7 +331,6 @@ func PostMessage(post_response api.WallGetResponse) {
 				telegram_api_photos[i].Media = post_response.Items[0].Attachments[i].Doc.URL
 			} else if post_response.Items[0].Attachments[i].Type == "video" {
 				telegram_api_photos[i].Type_photo = "video"
-				GetVideoURL(post_response.Items[0].Attachments[i].Video.OwnerID, post_response.Items[0].Attachments[i].Video.ID)
 				telegram_api_photos[i].Media = fmt.Sprintf("%v", GetVideoURL(post_response.Items[0].Attachments[i].Video.OwnerID, post_response.Items[0].Attachments[i].Video.ID))
 			} else if post_response.Items[0].Attachments[i].Type == "audio" {
 				telegram_api_audio_params[i].Type_audio = "audio"
