@@ -227,6 +227,7 @@ func GetVideoURL(owner_id int, vid int) string {
 		"sec-ch-ua-mobile":          {"?0"},
 		"sec-ch-ua-platform":        {"\"Windows\""},
 	}
+
 	client = http.Client{}
 	// send the request
 	res, err = client.Do(req)
@@ -248,12 +249,7 @@ func GetVideoURL(owner_id int, vid int) string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ex, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	exPath := filepath.Dir(ex)
-	fd, err := os.Open(fmt.Sprintf("%v/%d_%d.mp4", exPath, oid, id))
+	fd, err := os.Open(fmt.Sprintf("/%d_%d.mp4", oid, id))
 	if err != nil {
 		log.Fatal(err)
 	}
