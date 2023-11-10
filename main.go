@@ -209,7 +209,7 @@ func GetVideoURL(owner_id int, vid int) string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	out, err := os.Create(fmt.Sprintf("/opt/%v_%v.mp4", oid, id))
+	out, err := os.Create(fmt.Sprintf("/video/%v_%v.mp4", oid, id))
 	defer out.Close()
 	req.Header = http.Header{
 		"Accept":                    {"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"},
@@ -238,7 +238,7 @@ func GetVideoURL(owner_id int, vid int) string {
 	defer res.Body.Close()
 	n, err := io.Copy(out, res.Body)
 	fmt.Printf("", n)
-	respo, err := os.Open(fmt.Sprintf("/opt/%d_%d.mp4", oid, id))
+	respo, err := os.Open(fmt.Sprintf("/video/%d_%d.mp4", oid, id))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -249,7 +249,7 @@ func GetVideoURL(owner_id int, vid int) string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fd, err := os.Open(fmt.Sprintf("/opt/%d_%d.mp4", oid, id))
+	fd, err := os.Open(fmt.Sprintf("/video/%d_%d.mp4", oid, id))
 	if err != nil {
 		log.Fatal(err)
 	}
