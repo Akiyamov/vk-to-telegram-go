@@ -243,7 +243,12 @@ func GetVideoURL(owner_id int, vid int) string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fd, err := os.Open(fmt.Sprintf("./%d_%d.mp4", oid, id))
+	ex, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	exPath := filepath.Dir(ex)
+	fd, err := os.Open(fmt.Sprintf("%v/%d_%d.mp4", exPath, oid, id))
 	if err != nil {
 		log.Fatal(err)
 	}
