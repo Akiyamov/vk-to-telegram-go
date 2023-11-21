@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -229,20 +230,17 @@ func GetVideoURL(owner_id int, vid int) string {
 	}
 
 	client = http.Client{}
-	// send the request
 	res, err = client.Do(req)
 	if err != nil {
 		log.Fatalf("impossible to send request: %s", err)
 	}
 	log.Printf("status Code: %d", res.StatusCode)
 	defer res.Body.Close()
-	n, err := io.Copy(out, res.Body)
-	fmt.Printf("", n)
-	respo, err := os.Open(fmt.Sprintf("/video/%d_%d.mp4", oid, id))
+	_, err = io.Copy(out, res.Body)
+	_, err = os.Open(fmt.Sprintf("/video/%d_%d.mp4", oid, id))
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("", respo)
 	form := new(bytes.Buffer)
 	writer := multipart.NewWriter(form)
 	fw, err := writer.CreateFormFile("video", fmt.Sprintf("%d_%d.mp4", oid, id))
@@ -279,7 +277,39 @@ func GetVideoURL(owner_id int, vid int) string {
 	err = json.NewDecoder(resp.Body).Decode(&data_vid)
 	vid_idd := data_vid["result"].(map[string]interface{})["video"].(map[string]interface{})["file_id"]
 	vid_id := fmt.Sprintf("%v", vid_idd)
+	dir, err := os.ReadDir("/video")
+	for _, d := range dir {
+		os.RemoveAll(path.Join([]string{"video", d.Name()}...))
+	}
 	return vid_id
+}
+
+func NoAttachPrepare(text string, oid string, id string) {
+	telegram_api_text := telegram_api_text_params{}
+	telegram_api_text.Text = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%s\"><b>Ссылка на пост</b></a>", text, oid, id)
+	telegram_api_text.Parse_mode = "html"
+	telegram_api_text.Chat_id = telegram_chat_id
+	tmp_json, err := json.Marshal(telegram_api_text)
+	if err != nil {
+		log.Fatal(err)
+	}
+	SendToTelegramNoAttach(tmp_json)
+}
+
+func SendToTelegramNoAttach(post_data []byte) {
+	req, err := http.NewRequest("POST", telegram_api_send_text, bytes.NewBuffer(post_data))
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Print("Response is not 200, ", resp.Status)
+		body, _ := io.ReadAll(resp.Body)
+		log.Fatalln("response Body:", string(body))
+	}
 }
 
 func SendToTelegram(post_data []byte) {
@@ -335,50 +365,56 @@ func PostMessage(post_response api.WallGetResponse) {
 			} else if post_response.Items[0].Attachments[i].Type == "audio" {
 				telegram_api_audio_params[i].Type_audio = "audio"
 				telegram_api_audio_params[i].Media = GetAudioURL(fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.OwnerID), fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.ID))
-				telegram_api_audio := telegram_api_params_audio{}
-				telegram_api_audio.Chat_id = telegram_chat_id
-				telegram_api_audio_params[i].Parse_mode = "html"
-				telegram_api_audio_params[i].Caption = fmt.Sprintf("<b>Пидорасня не дает сделать в одном посте, поэтому отдельно</b>")
-				telegram_api_audio_params = DeleteEmptyAudio(telegram_api_audio_params)
-				telegram_api_audio.Media = telegram_api_audio_params
-				log.Print(telegram_api_audio)
 			}
 		}
 		telegram_api_media := telegram_api_params{}
 		telegram_api_media.Chat_id = telegram_chat_id
-		telegram_api_photos[0].Parse_mode = "html"
-		telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID)
 		telegram_api_photos = DeleteEmptyMedia(telegram_api_photos)
-		telegram_api_media.Media = telegram_api_photos
-		log.Print(telegram_api_media)
-		tmp_json, err := json.Marshal(telegram_api_media)
-		if err != nil {
-			log.Fatal(err)
+		telegram_api_audio := telegram_api_params_audio{}
+		telegram_api_audio.Chat_id = telegram_chat_id
+		telegram_api_audio_params = DeleteEmptyAudio(telegram_api_audio_params)
+		if len(telegram_api_photos) == 0 && len(telegram_api_audio_params) == 0 {
+			log.Print("Poll or something else in post, maybe add them?")
+			NoAttachPrepare(fmt.Sprintf("%s", post_response.Items[0].Text), fmt.Sprintf("%d", post_response.Items[0].OwnerID), fmt.Sprintf("%d", post_response.Items[0].ID))
+		} else if len(telegram_api_photos) != 0 && len(telegram_api_audio_params) == 0 {
+			telegram_api_photos[0].Parse_mode = "html"
+			telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID)
+			telegram_api_media.Media = telegram_api_photos
+			tmp_json, err := json.Marshal(telegram_api_media)
+			if err != nil {
+				log.Fatal(err)
+			}
+			SendToTelegram(tmp_json)
+		} else if len(telegram_api_photos) == 0 && len(telegram_api_audio_params) != 0 {
+			telegram_api_audio_params[0].Parse_mode = "html"
+			telegram_api_audio_params[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID)
+			telegram_api_audio.Media = telegram_api_audio_params
+			tmp_json, err := json.Marshal(telegram_api_audio)
+			if err != nil {
+				log.Fatal(err)
+			}
+			SendToTelegram(tmp_json)
+		} else if len(telegram_api_photos) != 0 && len(telegram_api_audio_params) != 0 {
+			telegram_api_photos[0].Parse_mode = "html"
+			telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID)
+			telegram_api_media.Media = telegram_api_photos
+			tmp_json, err := json.Marshal(telegram_api_media)
+			if err != nil {
+				log.Fatal(err)
+			}
+			SendToTelegram(tmp_json)
+			telegram_api_audio_params[0].Parse_mode = "html"
+			telegram_api_audio_params[0].Caption = fmt.Sprintf("<b>Пидорасня не дает сделать в одном посте, поэтому отдельно</b>")
+			telegram_api_audio.Media = telegram_api_audio_params
+			tmp_json_aud, err := json.Marshal(telegram_api_audio)
+			if err != nil {
+				log.Fatal(err)
+			}
+			SendToTelegram(tmp_json_aud)
 		}
-		SendToTelegram(tmp_json)
 	} else {
 		log.Print("Post has no media, post caption only\n")
-		telegram_api_text := telegram_api_text_params{}
-		telegram_api_text.Text = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID)
-		telegram_api_text.Parse_mode = "html"
-		telegram_api_text.Chat_id = telegram_chat_id
-		tmp_json, err := json.Marshal(telegram_api_text)
-		if err != nil {
-			log.Fatal(err)
-		}
-		req, err := http.NewRequest("POST", telegram_api_send_text, bytes.NewBuffer(tmp_json))
-		req.Header.Set("Content-Type", "application/json")
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			log.Print("Response is not 200, %s", resp.Status)
-			body, _ := io.ReadAll(resp.Body)
-			log.Fatalln("response Body:", string(body))
-		}
+		NoAttachPrepare(fmt.Sprintf("%s", post_response.Items[0].Text), fmt.Sprintf("%d", post_response.Items[0].OwnerID), fmt.Sprintf("%d", post_response.Items[0].ID))
 	}
 }
 
