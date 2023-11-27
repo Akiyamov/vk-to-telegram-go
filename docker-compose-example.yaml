@@ -1,0 +1,19 @@
+version: "3"
+
+services:
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:latest
+    environment:
+      TELEGRAM_API_ID: "<api-id>"
+      TELEGRAM_API_HASH: "<api-hash>"
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+    ports:
+      - 8081:8081
+  repost-container:
+    image: akiyamov/telegramrepost:latest
+    volumes:
+      - /path/to/video:/video
+      - /path/to/.env:/opt/.env
+    restart: "on-failure"
+    user: "1024:1012"

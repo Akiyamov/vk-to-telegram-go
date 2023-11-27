@@ -421,7 +421,7 @@ func PostMessage(post_response api.WallGetResponse) {
 func Poll() {
 	r := rand.New(rand.NewSource(99))
 	c := time.Tick(10 * time.Second)
-	for _ = range c {
+	for range c {
 		Request()
 		jitter := time.Duration(r.Int31n(5000)) * time.Millisecond
 		time.Sleep(jitter)
@@ -450,9 +450,9 @@ func main() {
 	telegram_bot_token := os.Getenv("TG_TOKEN")
 	telegram_chat_id = os.Getenv("TG_CHAT_ID")
 	telegram_temp_chat_id = os.Getenv("TG_TEMP_CHAT_ID")
-	telegram_api_send_media = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendMediaGroup", telegram_bot_token)
-	telegram_api_send_text = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendMessage", telegram_bot_token)
-	telegram_api_send_video = fmt.Sprintf("http://127.0.0.1:8081/bot%s/sendVideo", telegram_bot_token)
+	telegram_api_send_media = fmt.Sprintf("telegram-bot-api:8081/bot%s/sendMediaGroup", telegram_bot_token)
+	telegram_api_send_text = fmt.Sprintf("telegram-bot-api:8081/bot%s/sendMessage", telegram_bot_token)
+	telegram_api_send_video = fmt.Sprintf("telegram-bot-api:8081/bot%s/sendVideo", telegram_bot_token)
 
 	Poll()
 }
