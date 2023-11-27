@@ -28,7 +28,7 @@ build:
         - docker build
           --cache-from akiyamov/telegramrepost:latest
           --tag akiyamov/telegramrepost:latest
-          --file ./Dockerfile
+          --file ./src/Dockerfile
           "."
         - echo $DOCKER_OAUTH_TOKEN | 
           docker login
