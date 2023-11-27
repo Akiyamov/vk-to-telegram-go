@@ -24,11 +24,12 @@ workflow:
 build:
     stage: build
     script:
+        - cd src
         - docker pull akiyamov/telegramrepost:latest || true
         - docker build
           --cache-from akiyamov/telegramrepost:latest
           --tag akiyamov/telegramrepost:latest
-          --file ./src/Dockerfile
+          --file ./Dockerfile
           "."
         - echo $DOCKER_OAUTH_TOKEN | 
           docker login
