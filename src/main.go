@@ -103,6 +103,20 @@ func Request() {
 	}
 }
 
+func GetGifURL(link string) string {
+	resp, err := http.Get(link)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer resp.Body.Close()
+
+	gifURL := resp.Request.URL
+
+	return fmt.Sprintf("%v", gifURL)
+}
+
 func GetAudioURL(owner_id string, audio_id string) string {
 	data := url.Values{
 		"access_token": {vk_access_token},
@@ -358,7 +372,7 @@ func PostMessage(post_response api.WallGetResponse) {
 				telegram_api_photos[i].Media = post_response.Items[0].Attachments[i].Photo.MaxSize().URL
 			} else if post_response.Items[0].Attachments[i].Type == "doc" && post_response.Items[0].Attachments[i].Doc.Ext == "gif" {
 				telegram_api_photos[i].Type_photo = "video"
-				telegram_api_photos[i].Media = post_response.Items[0].Attachments[i].Doc.URL
+				telegram_api_photos[i].Media = fmt.Sprintf("%v", GetGifURL(post_response.Items[0].Attachments[i].Doc.Preview.Video.Src))
 			} else if post_response.Items[0].Attachments[i].Type == "video" {
 				telegram_api_photos[i].Type_photo = "video"
 				telegram_api_photos[i].Media = fmt.Sprintf("%v", GetVideoURL(post_response.Items[0].Attachments[i].Video.OwnerID, post_response.Items[0].Attachments[i].Video.ID))
