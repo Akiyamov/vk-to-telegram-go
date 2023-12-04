@@ -82,24 +82,22 @@ func Request() {
 
 	err := vk.RequestUnmarshal("wall.get", &vk_response, params)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR] %v", err)
 	}
 
 	vk_post_requested = vk_response.Items[0].ID
 
 	if vk_post_last == 1 {
 		vk_post_last = vk_post_requested
-		log.Print("First poll, getting last post ID\n")
+		log.Print("[INFO] First request.\n")
 	} else if vk_post_last != vk_post_requested {
 		vk_post_last = vk_post_requested
-		log.Print("New post, initiate post sequence\n")
+		log.Printf("[INFO] New post vk.com/wall%v_%v\n", vk_response.Items[0].OwnerID, vk_response.Items[0].ID)
 		PostMessage(vk_response)
 		if vk_response.Items[0].CopyHistory != nil {
 			vk_response_repost.Items = vk_response.Items[0].CopyHistory
 			PostMessage(vk_response_repost)
 		}
-	} else {
-		log.Print("No posts, continue polling\n")
 	}
 }
 
@@ -107,7 +105,7 @@ func GetGifURL(link string) string {
 	resp, err := http.Get(link)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR] %v", err)
 	}
 
 	defer resp.Body.Close()
@@ -127,20 +125,20 @@ func GetAudioURL(owner_id string, audio_id string) string {
 	resp, err := http.PostForm("https://api.vk.com/method/audio.getById?client_id=5776857", data)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR] %v", err)
 	}
 
 	defer resp.Body.Close()
 
 	dec := json.NewDecoder(resp.Body)
 	if dec == nil {
-		panic("Failed to start decoding JSON data")
+		log.Fatal("Failed to start decoding JSON data")
 	}
 
 	json_map := make(map[string]interface{})
 	err = dec.Decode(&json_map)
 	if err != nil {
-		panic(err)
+		log.Fatalf("[ERROR] %v", err)
 	}
 
 	url_of := fmt.Sprintf("%v", json_map["response"].([]interface{})[0].(map[string]interface{})["url"])
@@ -162,7 +160,7 @@ func GetVideoURL(owner_id int, vid int) string {
 
 	req, err := http.NewRequest("POST", "https://vk.com/al_video.php?act=show", strings.NewReader(payloadi.Encode()))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR] %v", err)
 	}
 	req.Header = http.Header{
 		"authority":          {"authority"},
@@ -184,45 +182,35 @@ func GetVideoURL(owner_id int, vid int) string {
 	client := http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("impossible to send request: %s", err)
+		log.Fatalf("[ERROR] impossible to send request: %s", err)
 	}
-	log.Printf("status Code: %d", res.StatusCode)
+	log.Printf("[INFO] GetVideoURL 1: status Code: %d", res.StatusCode)
 
 	defer res.Body.Close()
 	dec := json.NewDecoder(res.Body)
 	if dec == nil {
-		panic("Failed to start decoding JSON data")
+		log.Fatal("[ERROR] Failed to start decoding JSON data")
 	}
 	json_map := make(map[string]interface{})
 	err = dec.Decode(&json_map)
 	if err != nil {
-		panic(err)
+		log.Fatalf("[ERROR] %v", err)
 	}
-	url240 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url240"]
-	url360 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url360"]
-	url480 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url480"]
-	url720 := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})["url720"]
-	if url720 == nil {
-		if url480 == nil {
-			if url360 == nil {
-				if url240 == nil {
-					log.Fatal("Ты еблан")
-				} else {
-					url_best = fmt.Sprintf("%v", url240)
-				}
-			} else {
-				url_best = fmt.Sprintf("%v", url360)
-			}
+
+	qual_slice := [4]string{"url720", "url480", "url320", "url240"}
+	for _, quality := range qual_slice {
+		probe_url := json_map["payload"].([]interface{})[1].([]interface{})[4].(map[string]interface{})["player"].(map[string]interface{})["params"].([]interface{})[0].(map[string]interface{})[fmt.Sprintf("%v", quality)]
+		if probe_url != nil {
+			url_best = fmt.Sprintf("%v", probe_url)
+			break
 		} else {
-			url_best = fmt.Sprintf("%v", url480)
+			continue
 		}
-	} else {
-		url_best = fmt.Sprintf("%v", url720)
 	}
 
 	req, err = http.NewRequest("GET", url_best, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR] %v", err)
 	}
 	out, err := os.Create(fmt.Sprintf("/video/%v_%v.mp4", oid, id))
 	defer out.Close()
@@ -246,45 +234,45 @@ func GetVideoURL(owner_id int, vid int) string {
 	client = http.Client{}
 	res, err = client.Do(req)
 	if err != nil {
-		log.Fatalf("impossible to send request: %s", err)
+		log.Fatalf("[ERROR] impossible to send request: %s", err)
 	}
-	log.Printf("status Code: %d", res.StatusCode)
+	log.Printf("[INFO] status Code: %d", res.StatusCode)
 	defer res.Body.Close()
 	_, err = io.Copy(out, res.Body)
 	_, err = os.Open(fmt.Sprintf("/video/%d_%d.mp4", oid, id))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %v]", err)
 	}
 	form := new(bytes.Buffer)
 	writer := multipart.NewWriter(form)
 	fw, err := writer.CreateFormFile("video", fmt.Sprintf("%d_%d.mp4", oid, id))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %v]", err)
 	}
 	fd, err := os.Open(fmt.Sprintf("/video/%d_%d.mp4", oid, id))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %v]", err)
 	}
 	defer fd.Close()
 	_, err = io.Copy(fw, fd)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %v]", err)
 	}
 	formField, err := writer.CreateFormField("chat_id")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %v]", err)
 	}
 	_, err = formField.Write([]byte(telegram_temp_chat_id))
 	writer.Close()
 	client = http.Client{}
 	req, err = http.NewRequest("POST", telegram_api_send_video, form)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %v]", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %v]", err)
 	}
 	defer resp.Body.Close()
 	data_vid := make(map[string]interface{})
@@ -305,7 +293,7 @@ func NoAttachPrepare(text string, oid string, id string) {
 	telegram_api_text.Chat_id = telegram_chat_id
 	tmp_json, err := json.Marshal(telegram_api_text)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %v]", err)
 	}
 	SendToTelegramNoAttach(tmp_json)
 }
@@ -316,7 +304,7 @@ func SendToTelegramNoAttach(post_data []byte) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %v]", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -332,7 +320,7 @@ func SendToTelegram(post_data []byte) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %v]", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -381,6 +369,12 @@ func PostMessage(post_response api.WallGetResponse) {
 				telegram_api_audio_params[i].Media = GetAudioURL(fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.OwnerID), fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.ID))
 			}
 		}
+		var telegram_copyright_link string
+		if post_response.Items[0].Copyright.Link != "" {
+			telegram_copyright_link = fmt.Sprintf("<b> | </b><a href=\"%s\"><b>Ссылка на источник</b></a>", post_response.Items[0].Copyright.Link)
+		} else {
+			telegram_copyright_link = ""
+		}
 		telegram_api_media := telegram_api_params{}
 		telegram_api_media.Chat_id = telegram_chat_id
 		telegram_api_photos = DeleteEmptyMedia(telegram_api_photos)
@@ -392,29 +386,29 @@ func PostMessage(post_response api.WallGetResponse) {
 			NoAttachPrepare(fmt.Sprintf("%s", post_response.Items[0].Text), fmt.Sprintf("%d", post_response.Items[0].OwnerID), fmt.Sprintf("%d", post_response.Items[0].ID))
 		} else if len(telegram_api_photos) != 0 && len(telegram_api_audio_params) == 0 {
 			telegram_api_photos[0].Parse_mode = "html"
-			telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID)
+			telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>%s", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID, telegram_copyright_link)
 			telegram_api_media.Media = telegram_api_photos
 			tmp_json, err := json.Marshal(telegram_api_media)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("[ERROR %v]", err)
 			}
 			SendToTelegram(tmp_json)
 		} else if len(telegram_api_photos) == 0 && len(telegram_api_audio_params) != 0 {
 			telegram_api_audio_params[0].Parse_mode = "html"
-			telegram_api_audio_params[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID)
+			telegram_api_audio_params[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>%s", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID, telegram_copyright_link)
 			telegram_api_audio.Media = telegram_api_audio_params
 			tmp_json, err := json.Marshal(telegram_api_audio)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("[ERROR %v]", err)
 			}
 			SendToTelegram(tmp_json)
 		} else if len(telegram_api_photos) != 0 && len(telegram_api_audio_params) != 0 {
 			telegram_api_photos[0].Parse_mode = "html"
-			telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID)
+			telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>%s", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID, telegram_copyright_link)
 			telegram_api_media.Media = telegram_api_photos
 			tmp_json, err := json.Marshal(telegram_api_media)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("[ERROR %v]", err)
 			}
 			SendToTelegram(tmp_json)
 			telegram_api_audio_params[0].Parse_mode = "html"
@@ -422,7 +416,7 @@ func PostMessage(post_response api.WallGetResponse) {
 			telegram_api_audio.Media = telegram_api_audio_params
 			tmp_json_aud, err := json.Marshal(telegram_api_audio)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("[ERROR %v]", err)
 			}
 			SendToTelegram(tmp_json_aud)
 		}
