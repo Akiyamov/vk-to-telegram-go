@@ -3,6 +3,7 @@ default:
   services:
     - docker:24.0.5-dind
   before_script:
+    - unset DOCKER_HOST
     - docker info
 
 variables:
