@@ -45,6 +45,6 @@ deploy:
         - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
         - mkdir -p ~/.ssh
         - chmod 700 ~/.ssh
-        - ssh-keyscan 146.185.209.74 >> ~/.ssh/known_hosts
+        - ssh-keyscan 92.63.98.7 >> ~/.ssh/known_hosts
         - chmod 644 ~/.ssh/known_hosts
-        - ssh -T ubuntu@146.185.209.74 ./restart.sh
+        - ssh -T root@92.63.98.7 /root/tg-bot/restart.sh

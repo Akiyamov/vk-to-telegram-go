@@ -76,6 +76,7 @@ func Request() {
 		"access_token": vk_access_token,
 		"owner_id":     vk_owner_id,
 		"count":        1,
+		"offset":		1,
 		"filter":       "all",
 		"v":            vk_api_version,
 	}
