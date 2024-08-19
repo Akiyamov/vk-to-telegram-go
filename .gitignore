@@ -1,3 +1,4 @@
 .env
 test.go
 docker-compose.yaml
+test/** 

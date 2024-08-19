@@ -27,11 +27,12 @@ var vk_access_token string
 var vk_api_version string
 var vk_owner_id string
 var vk_post_last int
-var vk_post_requested int
+var vk_post_requested_ID int
 
 var telegram_bot_token string
 var telegram_temp_chat_id string
 var telegram_chat_id string
+var telegram_source_required string
 var telegram_api_send_video string
 var telegram_api_send_media string
 var telegram_api_send_text string
@@ -76,7 +77,7 @@ func Request() {
 		"access_token": vk_access_token,
 		"owner_id":     vk_owner_id,
 		"count":        1,
-		"offset":		1,
+		"offset":       0,
 		"filter":       "all",
 		"v":            vk_api_version,
 	}
@@ -86,17 +87,51 @@ func Request() {
 		log.Fatalf("[ERROR] %v", err)
 	}
 
-	vk_post_requested = vk_response.Items[0].ID
+	vk_is_pinned_check := vk_response.Items[0].IsPinned
+	if vk_is_pinned_check {
+		params := api.Params{
+			"access_token": vk_access_token,
+			"owner_id":     vk_owner_id,
+			"count":        1,
+			"offset":       1,
+			"filter":       "all",
+			"v":            vk_api_version,
+		}
+
+		err := vk.RequestUnmarshal("wall.get", &vk_response, params)
+		if err != nil {
+			log.Fatalf("[ERROR] %v", err)
+		}
+
+		vk_post_requested_ID = vk_response.Items[0].ID
+		vk_post_requested := vk_response.Items[0]
+
+		if vk_post_last == 1 {
+			vk_post_last = vk_post_requested_ID
+			log.Print("[INFO] First request.\n")
+		} else if vk_post_last != vk_post_requested_ID {
+			vk_post_last = vk_post_requested_ID
+			log.Printf("[INFO] New post vk.com/wall%v_%v\n", vk_post_requested.OwnerID, vk_post_requested.ID)
+			PostMessage(vk_response)
+			if vk_post_requested.CopyHistory != nil {
+				vk_response_repost.Items = vk_post_requested.CopyHistory
+				PostMessage(vk_response_repost)
+			}
+		}
+	}
+
+	vk_post_requested_ID = vk_response.Items[0].ID
+	vk_post_requested := vk_response.Items[0]
 
 	if vk_post_last == 1 {
-		vk_post_last = vk_post_requested
+		vk_post_last = vk_post_requested_ID
 		log.Print("[INFO] First request.\n")
-	} else if vk_post_last != vk_post_requested {
-		vk_post_last = vk_post_requested
-		log.Printf("[INFO] New post vk.com/wall%v_%v\n", vk_response.Items[0].OwnerID, vk_response.Items[0].ID)
+	} else if vk_post_last != vk_post_requested_ID {
+		vk_post_last = vk_post_requested_ID
+		log.Printf("[INFO] New post vk.com/wall%v_%v\n", vk_post_requested.OwnerID, vk_post_requested.ID)
 		PostMessage(vk_response)
-		if vk_response.Items[0].CopyHistory != nil {
-			vk_response_repost.Items = vk_response.Items[0].CopyHistory
+		if vk_post_requested.CopyHistory != nil {
+			vk_response_repost.Items = vk_post_requested.CopyHistory
 			PostMessage(vk_response_repost)
 		}
 	}
@@ -287,9 +322,9 @@ func GetVideoURL(owner_id int, vid int) string {
 	return vid_id
 }
 
-func NoAttachPrepare(text string, oid string, id string) {
+func NoAttachPrepare(text string, tg_src string) {
 	telegram_api_text := telegram_api_text_params{}
-	telegram_api_text.Text = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%s_%s\"><b>Ссылка на пост</b></a>", text, oid, id)
+	telegram_api_text.Text = fmt.Sprintf("%s%s", text, tg_src)
 	telegram_api_text.Parse_mode = "html"
 	telegram_api_text.Chat_id = telegram_chat_id
 	tmp_json, err := json.Marshal(telegram_api_text)
@@ -370,11 +405,13 @@ func PostMessage(post_response api.WallGetResponse) {
 				telegram_api_audio_params[i].Media = GetAudioURL(fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.OwnerID), fmt.Sprintf("%v", post_response.Items[0].Attachments[i].Audio.ID))
 			}
 		}
-		var telegram_copyright_link string
-		if post_response.Items[0].Copyright.Link != "" {
-			telegram_copyright_link = fmt.Sprintf("<b> | </b><a href=\"%s\"><b>Ссылка на источник</b></a>", post_response.Items[0].Copyright.Link)
-		} else {
-			telegram_copyright_link = ""
+		var telegram_source_link string
+		if telegram_source_required == "true" {
+			if post_response.Items[0].Copyright.Link != "" {
+				telegram_source_link = fmt.Sprintf("\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a><b> | </b><a href=\"%s\"><b>Ссылка на источник</b></a>", post_response.Items[0].OwnerID, post_response.Items[0].ID, post_response.Items[0].Copyright.Link)
+			} else {
+				telegram_source_link = fmt.Sprintf("\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].OwnerID, post_response.Items[0].ID)
+			}
 		}
 		telegram_api_media := telegram_api_params{}
 		telegram_api_media.Chat_id = telegram_chat_id
@@ -384,10 +421,14 @@ func PostMessage(post_response api.WallGetResponse) {
 		telegram_api_audio_params = DeleteEmptyAudio(telegram_api_audio_params)
 		if len(telegram_api_photos) == 0 && len(telegram_api_audio_params) == 0 {
 			log.Print("Poll or something else in post, maybe add them?")
-			NoAttachPrepare(fmt.Sprintf("%s", post_response.Items[0].Text), fmt.Sprintf("%d", post_response.Items[0].OwnerID), fmt.Sprintf("%d", post_response.Items[0].ID))
+			NoAttachPrepare(post_response.Items[0].Text, telegram_source_link)
 		} else if len(telegram_api_photos) != 0 && len(telegram_api_audio_params) == 0 {
 			telegram_api_photos[0].Parse_mode = "html"
-			telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>%s", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID, telegram_copyright_link)
+			if post_response.Items[0].Attachments[0].Type == "video" && post_response.Items[0].Attachments[0].Video.Type == "short_video" {
+				telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", post_response.Items[0].Attachments[0].Video.Description, telegram_source_link)
+			} else {
+				telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", post_response.Items[0].Text, telegram_source_link)
+			}
 			telegram_api_media.Media = telegram_api_photos
 			tmp_json, err := json.Marshal(telegram_api_media)
 			if err != nil {
@@ -396,7 +437,7 @@ func PostMessage(post_response api.WallGetResponse) {
 			SendToTelegram(tmp_json)
 		} else if len(telegram_api_photos) == 0 && len(telegram_api_audio_params) != 0 {
 			telegram_api_audio_params[0].Parse_mode = "html"
-			telegram_api_audio_params[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>%s", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID, telegram_copyright_link)
+			telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", post_response.Items[0].Text, telegram_source_link)
 			telegram_api_audio.Media = telegram_api_audio_params
 			tmp_json, err := json.Marshal(telegram_api_audio)
 			if err != nil {
@@ -405,7 +446,7 @@ func PostMessage(post_response api.WallGetResponse) {
 			SendToTelegram(tmp_json)
 		} else if len(telegram_api_photos) != 0 && len(telegram_api_audio_params) != 0 {
 			telegram_api_photos[0].Parse_mode = "html"
-			telegram_api_photos[0].Caption = fmt.Sprintf("%s\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>%s", post_response.Items[0].Text, post_response.Items[0].OwnerID, post_response.Items[0].ID, telegram_copyright_link)
+			telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", post_response.Items[0].Text, telegram_source_link)
 			telegram_api_media.Media = telegram_api_photos
 			tmp_json, err := json.Marshal(telegram_api_media)
 			if err != nil {
@@ -422,8 +463,16 @@ func PostMessage(post_response api.WallGetResponse) {
 			SendToTelegram(tmp_json_aud)
 		}
 	} else {
+		var telegram_source_link string
+		if telegram_source_required == "true" {
+			if post_response.Items[0].Copyright.Link != "" {
+				telegram_source_link = fmt.Sprintf("\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a><b> | </b><a href=\"%s\"><b>Ссылка на источник</b></a>", post_response.Items[0].OwnerID, post_response.Items[0].ID, post_response.Items[0].Copyright.Link)
+			} else {
+				telegram_source_link = fmt.Sprintf("\n\n<a href=\"https://vk.com/wall%d_%d\"><b>Ссылка на пост</b></a>", post_response.Items[0].OwnerID, post_response.Items[0].ID)
+			}
+		}
 		log.Print("Post has no media, post caption only\n")
-		NoAttachPrepare(fmt.Sprintf("%s", post_response.Items[0].Text), fmt.Sprintf("%d", post_response.Items[0].OwnerID), fmt.Sprintf("%d", post_response.Items[0].ID))
+		NoAttachPrepare(post_response.Items[0].Text, telegram_source_link)
 	}
 }
 
@@ -459,6 +508,7 @@ func main() {
 	telegram_bot_token := os.Getenv("TG_TOKEN")
 	telegram_chat_id = os.Getenv("TG_CHAT_ID")
 	telegram_temp_chat_id = os.Getenv("TG_TEMP_CHAT_ID")
+	telegram_source_required = os.Getenv("TG_SRC")
 	telegram_api_send_media = fmt.Sprintf("http://telegram-bot-api:8081/bot%s/sendMediaGroup", telegram_bot_token)
 	telegram_api_send_text = fmt.Sprintf("http://telegram-bot-api:8081/bot%s/sendMessage", telegram_bot_token)
 	telegram_api_send_video = fmt.Sprintf("http://telegram-bot-api:8081/bot%s/sendVideo", telegram_bot_token)
