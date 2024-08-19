@@ -31,7 +31,6 @@ jobs:
         with:
           platforms: linux/386,linux/amd64,linux/arm64
           context: src
-          target: dist
           build-args: |
             BUILDKIT_CONTEXT_KEEP_GIT_DIR=1
           tags: |
