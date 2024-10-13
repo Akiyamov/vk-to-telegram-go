@@ -64,4 +64,4 @@ docker run -u uid:gid \
 -v /dest/to/fold/.env:/opt/.env \
 akiyamov/telegramrepost:latest
 ```
-`uid`, `gid`, а также пути к директориям нужно указать свои.
+`uid`, `gid`, а также пути к директориям нужно указать свои
