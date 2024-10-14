@@ -16,4 +16,4 @@ services:
       - /path/to/video:/video
       - /path/to/.env:/opt/.env
     restart: "on-failure"
-    user: "1024:1012"
+    user: "1024:1012".
