@@ -28,6 +28,7 @@ var vk_access_token string
 var vk_api_version string
 var vk_owner_id string
 var vk_post_last int
+var vk_what_to_clean string
 
 var telegram_bot_token string
 var telegram_temp_chat_id string
@@ -394,14 +395,17 @@ func PostMessage(post_vk object.WallWallpost) {
 		telegram_api_audio.Chat_id = telegram_chat_id
 		telegram_api_audio_params = DeleteEmptyAudio(telegram_api_audio_params)
 		if len(telegram_api_photos) == 0 && len(telegram_api_audio_params) == 0 {
-			log.Print("Poll or something else in post, maybe add them?")
-			NoAttachPrepare(post_vk.Text, telegram_source_link)
+			log.Print("[DEBUG] Poll or something else in post, maybe add them?")
+			telegram_api_descr_cleansed := strings.ReplaceAll(post_vk.Text, vk_what_to_clean, "")
+			NoAttachPrepare(telegram_api_descr_cleansed, telegram_source_link)
 		} else if len(telegram_api_photos) != 0 && len(telegram_api_audio_params) == 0 {
 			telegram_api_photos[0].Parse_mode = "html"
 			if post_vk.Attachments[0].Type == "video" && post_vk.Attachments[0].Video.Type == "short_video" {
-				telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", post_vk.Attachments[0].Video.Description, telegram_source_link)
+				telegram_api_descr_cleansed := strings.ReplaceAll(post_vk.Attachments[0].Video.Description, vk_what_to_clean, "")
+				telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", telegram_api_descr_cleansed, telegram_source_link)
 			} else {
-				telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", post_vk.Text, telegram_source_link)
+				telegram_api_descr_cleansed := strings.ReplaceAll(post_vk.Text, vk_what_to_clean, "")
+				telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", telegram_api_descr_cleansed, telegram_source_link)
 			}
 			telegram_api_media.Media = telegram_api_photos
 			tmp_json, err := json.Marshal(telegram_api_media)
@@ -411,7 +415,8 @@ func PostMessage(post_vk object.WallWallpost) {
 			SendToTelegram(tmp_json)
 		} else if len(telegram_api_photos) == 0 && len(telegram_api_audio_params) != 0 {
 			telegram_api_audio_params[0].Parse_mode = "html"
-			telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", post_vk.Text, telegram_source_link)
+			telegram_api_descr_cleansed := strings.ReplaceAll(post_vk.Text, vk_what_to_clean, "")
+			telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", telegram_api_descr_cleansed, telegram_source_link)
 			telegram_api_audio.Media = telegram_api_audio_params
 			tmp_json, err := json.Marshal(telegram_api_audio)
 			if err != nil {
@@ -420,7 +425,8 @@ func PostMessage(post_vk object.WallWallpost) {
 			SendToTelegram(tmp_json)
 		} else if len(telegram_api_photos) != 0 && len(telegram_api_audio_params) != 0 {
 			telegram_api_photos[0].Parse_mode = "html"
-			telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", post_vk.Text, telegram_source_link)
+			telegram_api_descr_cleansed := strings.ReplaceAll(post_vk.Text, vk_what_to_clean, "")
+			telegram_api_photos[0].Caption = fmt.Sprintf("%s%s", telegram_api_descr_cleansed, telegram_source_link)
 			telegram_api_media.Media = telegram_api_photos
 			tmp_json, err := json.Marshal(telegram_api_media)
 			if err != nil {
@@ -446,7 +452,8 @@ func PostMessage(post_vk object.WallWallpost) {
 			}
 		}
 		log.Print("Post has no media, post caption only\n")
-		NoAttachPrepare(post_vk.Text, telegram_source_link)
+		telegram_api_descr_cleansed := strings.ReplaceAll(post_vk.Text, vk_what_to_clean, "")
+		NoAttachPrepare(telegram_api_descr_cleansed, telegram_source_link)
 	}
 }
 
@@ -486,6 +493,7 @@ func main() {
 	telegram_api_send_media = fmt.Sprintf("http://telegram-bot-api:8081/bot%s/sendMediaGroup", telegram_bot_token)
 	telegram_api_send_text = fmt.Sprintf("http://telegram-bot-api:8081/bot%s/sendMessage", telegram_bot_token)
 	telegram_api_send_video = fmt.Sprintf("http://telegram-bot-api:8081/bot%s/sendVideo", telegram_bot_token)
+	vk_what_to_clean = os.Getenv("CLEAN_TXT")
 
 	Poll()
 }
